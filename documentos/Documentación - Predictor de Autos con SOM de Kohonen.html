@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Documentación: Predictor de Autos con Red de Kohonen (SOM)</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2933; --muted: #5b6770; --card: #f4f6f8; --line: #d9dee3;
+    --accent: #1b5fa8; --accent-soft: #e4eefa; --ok: #1d7a46; --warn: #a15c00; --warn-soft: #fff3df;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181d; --fg: #e6e9ec; --muted: #9aa5ae; --card: #1d2329; --line: #2f3841;
+      --accent: #6aa9ee; --accent-soft: #1b2a3b; --ok: #5cc388; --warn: #f0b35a; --warn-soft: #33290f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181d; --fg: #e6e9ec; --muted: #9aa5ae; --card: #1d2329; --line: #2f3841;
+    --accent: #6aa9ee; --accent-soft: #1b2a3b; --ok: #5cc388; --warn: #f0b35a; --warn-soft: #33290f;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 18px 64px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 40px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+  h3 { font-size: 1.08rem; margin: 22px 0 6px; }
+  p { margin: 8px 0; }
+  .sub { color: var(--muted); margin-bottom: 18px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+  .box.info { background: var(--accent-soft); border-color: var(--accent); }
+  .box.warn { background: var(--warn-soft); border-color: var(--warn); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--card); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
+  pre code { background: none; padding: 0; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); white-space: nowrap; position: sticky; top: 0; }
+  td.n, th.n { text-align: right; white-space: nowrap; }
+  td.c { white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .skip { color: var(--muted); text-align: center; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 14px 0; }
+  .step { flex: 1 1 150px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+  .step b { display: block; color: var(--accent); margin-bottom: 2px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
+  @media print { .scroll { overflow: visible; } th { position: static; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Predictor de Autos con Mapa Auto-Organizado de Kohonen (SOM)</h1>
+<p class="sub">Documentación del programa <code>predictor_autos_som.py</code> y tabla de datos de muestra para probarlo.</p>
+
+<h2>1. ¿Qué hace el programa?</h2>
+<p>Recibe características de un automóvil (potencia, peso, precio, tipo de combustible, etc.) y devuelve una lista de los <b>modelos más probables</b>, cada uno con un porcentaje de confianza. Trabaja con <b>20 marcas</b> comerciales y <b>5 modelos por marca</b> (100 modelos en total).</p>
+<p>Lo importante: <b>no necesitas conocer todos los datos</b>. Puedes ingresar solo tres o cuatro y el sistema predice con lo que tenga; con más datos, la predicción mejora.</p>
+
+<div class="box info">
+  <b>Marcas incluidas:</b> Toyota, Volkswagen, Ford, Honda, Chevrolet, Nissan, Hyundai, Kia, Mercedes-Benz, BMW, Audi, Tesla, Mazda, Suzuki, Renault, Peugeot, Volvo, Subaru, Jeep y Mitsubishi.
+</div>
+
+<h2>2. Conceptos básicos</h2>
+<h3>¿Qué es un SOM (red de Kohonen)?</h3>
+<p>Es una red neuronal <b>no supervisada</b>: nadie le dice a qué grupo pertenece cada auto. La red organiza una malla de neuronas (20 × 20 en este programa) de modo que los autos parecidos queden en neuronas cercanas. Así se forman zonas del mapa: compactos económicos en una región, camionetas pesadas en otra, deportivos en otra, y los eléctricos en su propia zona.</p>
+<h3>¿Cómo se convierte en un predictor?</h3>
+<p>Después del entrenamiento, cada neurona "recuerda" qué modelos cayeron en ella. Al ingresar un auto nuevo se busca su neurona ganadora (BMU, <i>Best Matching Unit</i>) y se consulta qué modelos viven ahí y en sus vecinas. Ese resultado se combina con la cercanía del auto ingresado al perfil promedio de cada modelo.</p>
+
+<h2>3. Flujo del programa</h2>
+<div class="flow">
+  <div class="step"><b>1. Catálogo</b>100 modelos con 16 variables cada uno.</div>
+  <div class="step"><b>2. Variaciones</b>Se generan 40 variantes por modelo (4,000 muestras) con ruido realista.</div>
+  <div class="step"><b>3. Normalización</b>Las variables numéricas pasan a escala 0-1; tracción y combustible se codifican en columnas 0/1.</div>
+  <div class="step"><b>4. Entrenamiento</b>El SOM se entrena con el 80% de las muestras.</div>
+  <div class="step"><b>5. Evaluación</b>Se mide la exactitud con el 20% restante.</div>
+  <div class="step"><b>6. Predicción</b>Tú ingresas datos y obtienes el top-N de modelos.</div>
+</div>
+
+<h2>4. Variables que maneja</h2>
+<div class="scroll">
+<table>
+  <tr><th>#</th><th>Variable</th><th>Unidad / valores</th><th>Peso en la comparación</th></tr>
+  <tr><td>1</td><td>Cilindros</td><td>número (0 si es eléctrico)</td><td>1.0</td></tr>
+  <tr><td>2</td><td>Cilindrada</td><td>litros (0 si es eléctrico)</td><td>1.0</td></tr>
+  <tr><td>3</td><td>HP</td><td>caballos de fuerza</td><td>1.5</td></tr>
+  <tr><td>4</td><td>Torque</td><td>Nm</td><td>1.0</td></tr>
+  <tr><td>5</td><td>Peso</td><td>kg</td><td>1.5</td></tr>
+  <tr><td>6</td><td>Consumo</td><td>L/100 km (eléctricos: equivalente)</td><td>1.0</td></tr>
+  <tr><td>7</td><td>Largo</td><td>metros</td><td>1.5</td></tr>
+  <tr><td>8</td><td>Ancho</td><td>metros</td><td>1.0</td></tr>
+  <tr><td>9</td><td>Alto</td><td>metros</td><td>1.0</td></tr>
+  <tr><td>10</td><td>Aceleración 0-100 km/h</td><td>segundos</td><td>1.0</td></tr>
+  <tr><td>11</td><td>Velocidad máxima</td><td>km/h</td><td>0.7</td></tr>
+  <tr><td>12</td><td>Cajuela</td><td>litros (pickups: caja de carga)</td><td>0.7</td></tr>
+  <tr><td>13</td><td>Asientos</td><td>número</td><td>0.7</td></tr>
+  <tr><td>14</td><td>Precio</td><td>USD</td><td>2.0</td></tr>
+  <tr><td>15</td><td>Tracción</td><td>FWD, RWD, AWD, 4x4</td><td>1.5</td></tr>
+  <tr><td>16</td><td>Combustible</td><td>Gasolina, Diésel, Híbrido, Eléctrico</td><td>2.0</td></tr>
+</table>
+</div>
+<p>El <b>peso</b> indica qué tanto influye cada variable al comparar. El precio y el combustible pesan más porque separan muy bien a los modelos.</p>
+
+<h2>5. Cómo predice cuando faltan datos</h2>
+<ol>
+  <li>Marca qué variables ingresaste (máscara) y descarta el resto.</li>
+  <li>Calcula la distancia ponderada entre tu auto y el perfil promedio de cada uno de los 100 modelos, usando solo las variables ingresadas.</li>
+  <li>Convierte las distancias en probabilidades (softmax): a menor distancia, mayor probabilidad.</li>
+  <li>Busca la neurona ganadora del SOM (también con la máscara) y cuenta los modelos de esa neurona y sus 8 vecinas.</li>
+  <li>Combina ambas fuentes: <b>65% distancia a perfiles + 35% votos del SOM</b>.</li>
+  <li>Muestra los N mejores candidatos con su porcentaje.</li>
+</ol>
+
+<h2>6. Instalación y uso</h2>
+<pre><code>pip install numpy pandas scikit-learn matplotlib minisom
+python predictor_autos_som.py</code></pre>
+<div class="scroll">
+<table>
+  <tr><th>Opción</th><th>Efecto</th></tr>
+  <tr><td><code>--sin-grafica</code></td><td>No abre las ventanas de matplotlib.</td></tr>
+  <tr><td><code>--sin-evaluacion</code></td><td>Omite la evaluación y arranca más rápido.</td></tr>
+  <tr><td><code>--no-interactivo</code></td><td>Solo ejecuta los ejemplos, sin pedir datos.</td></tr>
+  <tr><td><code>--top 10</code></td><td>Muestra 10 candidatos en lugar de 5.</td></tr>
+</table>
+</div>
+<p>En modo interactivo, el programa pregunta las variables <b>en el orden de la tabla del punto 4</b>. Escribe el valor y pulsa ENTER; si no conoces el dato, pulsa ENTER sin escribir nada. Los decimales pueden llevar punto o coma. En tracción y combustible escribe la opción tal como aparece (no importan mayúsculas/minúsculas, pero sí los acentos: <code>Diésel</code>, <code>Híbrido</code>, <code>Eléctrico</code>).</p>
+
+<h2>7. Tabla de datos de muestra para ingresar</h2>
+<p>Cada fila es un caso de prueba. Las columnas siguen el mismo orden en que el programa hace las preguntas. Un guion (—) significa <b>pulsar ENTER sin escribir nada</b>.</p>
+
+<div class="scroll">
+<table>
+  <tr>
+    <th>Caso</th><th class="n">Cilindros</th><th class="n">Cilindrada (L)</th><th class="n">HP</th><th class="n">Torque (Nm)</th>
+    <th class="n">Peso (kg)</th><th class="n">Consumo (L/100km)</th><th class="n">Largo (m)</th><th class="n">Ancho (m)</th>
+    <th class="n">Alto (m)</th><th class="n">0-100 (s)</th><th class="n">Vel. máx (km/h)</th><th class="n">Cajuela (L)</th>
+    <th class="n">Asientos</th><th class="n">Precio (USD)</th><th>Tracción</th><th>Combustible</th>
+  </tr>
+  <tr><td class="c"><b>1</b> Compacto económico</td><td class="n">3</td><td class="n">1.0</td><td class="n">68</td><td class="skip">—</td><td class="n">790</td><td class="n">5.0</td><td class="n">3.76</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">10000</td><td>FWD</td><td>Gasolina</td></tr>
+  <tr><td class="c"><b>2</b> Pickup diésel</td><td class="n">4</td><td class="n">2.8</td><td class="n">204</td><td class="n">500</td><td class="n">2100</td><td class="skip">—</td><td class="n">5.33</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">38000</td><td>4x4</td><td>Diésel</td></tr>
+  <tr><td class="c"><b>3</b> Eléctrico familiar</td><td class="skip">—</td><td class="skip">—</td><td class="n">283</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">4.69</td><td class="skip">—</td><td class="skip">—</td><td class="n">6.1</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">40000</td><td>RWD</td><td>Eléctrico</td></tr>
+  <tr><td class="c"><b>4</b> Deportivo V8</td><td class="n">8</td><td class="skip">—</td><td class="n">450</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">4.5</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td>RWD</td><td class="skip">—</td></tr>
+  <tr><td class="c"><b>5</b> SUV mediano AWD</td><td class="n">4</td><td class="n">2.5</td><td class="n">187</td><td class="skip">—</td><td class="n">1600</td><td class="skip">—</td><td class="n">4.6</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">30500</td><td>AWD</td><td>Gasolina</td></tr>
+  <tr><td class="c"><b>6</b> Sedán de lujo</td><td class="n">4</td><td class="n">2.0</td><td class="n">258</td><td class="skip">—</td><td class="n">1600</td><td class="skip">—</td><td class="n">4.79</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">47000</td><td>RWD</td><td>Gasolina</td></tr>
+  <tr><td class="c"><b>7</b> SUV grande, 7 asientos</td><td class="n">6</td><td class="skip">—</td><td class="n">300</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">5.05</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">7</td><td class="n">45000</td><td>AWD</td><td class="skip">—</td></tr>
+  <tr><td class="c"><b>8</b> Híbrido AWD</td><td class="skip">—</td><td class="skip">—</td><td class="n">219</td><td class="skip">—</td><td class="skip">—</td><td class="n">5.0</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">36000</td><td>AWD</td><td>Híbrido</td></tr>
+  <tr><td class="c"><b>9</b> Mínimo (solo 3 datos)</td><td class="skip">—</td><td class="skip">—</td><td class="n">100</td><td class="skip">—</td><td class="n">1000</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="skip">—</td><td class="n">14000</td><td class="skip">—</td><td class="skip">—</td></tr>
+</table>
+</div>
+
+<h3>Ejemplo de captura (caso 4: deportivo V8)</h3>
+<pre><code>Número de cilindros (0 si es eléctrico): 8
+Cilindrada en litros (0 si es eléctrico):            &larr; ENTER
+Potencia en HP: 450
+Torque en Nm:                                        &larr; ENTER
+... (ENTER en todas las que no conoces)
+Aceleración 0-100 km/h en segundos: 4.5
+... (ENTER)
+Traccion ['FWD', 'RWD', 'AWD', '4x4']: RWD
+Combustible ['Gasolina', 'Diésel', 'Híbrido', 'Eléctrico']:   &larr; ENTER</code></pre>
+
+<h2>8. Resultados esperados</h2>
+<p>Estos son los resultados que obtuve al ejecutar cada caso. Al reentrenar el SOM los porcentajes pueden variar unos puntos, pero el modelo en primer lugar y los candidatos principales deberían ser parecidos.</p>
+<div class="scroll">
+<table>
+  <tr><th>Caso</th><th>1.º candidato</th><th>2.º candidato</th><th>3.º candidato</th><th>Lectura</th></tr>
+  <tr><td class="c"><b>1</b></td><td>Renault Kwid (27 %)</td><td>Suzuki Alto (12 %)</td><td>Mitsubishi Mirage (8 %)</td><td>Los tres son compactos de entrada; la confianza se reparte.</td></tr>
+  <tr><td class="c"><b>2</b></td><td>Toyota Hilux (64 %)</td><td>Mitsubishi L200 (35 %)</td><td>Jeep Gladiator (&lt; 1 %)</td><td>Pickups diésel de tamaño parecido; el programa duda entre dos.</td></tr>
+  <tr><td class="c"><b>3</b></td><td>Tesla Model 3 (63 %)</td><td>Tesla Model Y (36 %)</td><td>Kia EV6 (&lt; 1 %)</td><td>El combustible eléctrico descarta casi todo lo demás.</td></tr>
+  <tr><td class="c"><b>4</b></td><td>Ford Mustang GT (80 %)</td><td>Chevrolet Camaro V6 (15 %)</td><td>Mercedes-Benz E350 (1 %)</td><td>Solo con 4 datos acierta con alta confianza.</td></tr>
+  <tr><td class="c"><b>5</b></td><td>Subaru Forester (12 %)</td><td>Mazda CX-5 (12 %)</td><td>Nissan X-Trail (11 %)</td><td>Caso ambiguo: varios SUV medianos son casi idénticos en datos.</td></tr>
+  <tr><td class="c"><b>6</b></td><td>Mercedes-Benz C300 (41 %)</td><td>BMW 330i (30 %)</td><td>BMW 530i (9 %)</td><td>Competidores directos; sin más datos no se pueden separar.</td></tr>
+  <tr><td class="c"><b>7</b></td><td>Ford Explorer (57 %)</td><td>Volvo XC90 (4 %)</td><td>Hyundai Santa Fe (3 %)</td><td>Los 7 asientos y el largo ayudan a distinguirlo.</td></tr>
+  <tr><td class="c"><b>8</b></td><td>Toyota RAV4 Hybrid (73 %)</td><td>Mitsubishi Outlander PHEV (26 %)</td><td>Audi A4 (0 %)</td><td>El consumo bajo y el combustible híbrido son decisivos.</td></tr>
+  <tr><td class="c"><b>9</b></td><td>Renault Logan (15 %)</td><td>Mitsubishi Attrage (14 %)</td><td>Suzuki Baleno (13 %)</td><td>Con 3 datos hay muchos candidatos posibles; confianza baja y repartida.</td></tr>
+</table>
+</div>
+
+<div class="box warn">
+  <b>Cómo interpretar los porcentajes.</b> Una confianza alta (más de 50 %) indica que pocos modelos encajan con tus datos. Cuando varios candidatos tienen porcentajes parecidos (casos 5, 6 y 9), significa que los datos ingresados no alcanzan para distinguirlos: agrega variables como cajuela, ancho, alto, torque o velocidad máxima y vuelve a probar.
+</div>
+
+<h2>9. Exactitud medida</h2>
+<div class="scroll">
+<table>
+  <tr><th>Datos usados</th><th class="n">Modelo exacto (top-1)</th><th class="n">Entre los 5 candidatos</th></tr>
+  <tr><td>Las 16 variables</td><td class="n">89.3 %</td><td class="n">100 %</td></tr>
+  <tr><td>5 variables básicas (HP, peso, largo, precio, combustible)</td><td class="n">60.3 %</td><td class="n">97.7 %</td></tr>
+</table>
+</div>
+<p>Se midió con 300 muestras que el SOM no vio durante el entrenamiento. Como esas muestras provienen del mismo catálogo con variaciones simuladas, con autos reales la exactitud será menor.</p>
+
+<h2>10. Limitaciones y mejoras posibles</h2>
+<ul>
+  <li><b>Datos aproximados:</b> las especificaciones del catálogo son valores típicos de una versión de cada modelo, no fichas oficiales. Para mejorar la precisión, reemplázalas por datos reales.</li>
+  <li><b>Una sola versión por modelo:</b> un mismo modelo tiene varias versiones (motor, equipamiento) que cambian potencia y precio.</li>
+  <li><b>Modelos muy similares:</b> compactos de entrada, SUV medianos y sedanes premium se parecen mucho entre sí, por eso se entrega un top-N y no una sola respuesta.</li>
+  <li><b>Ampliaciones sugeridas:</b> cargar el catálogo desde un archivo CSV, agregar más variables (año, tipo de transmisión, número de puertas) y más modelos por marca.</li>
+</ul>
+
+<footer>Documento generado para el programa <code>predictor_autos_som.py</code>. Fecha: 5 de octubre de 2026.</footer>
+
+</main>
+</body>
+</html>
